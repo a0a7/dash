@@ -1,0 +1,27 @@
+name: Prefetch Menus to Cloudflare KV
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+
+jobs:
+  prefetch-menus:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prefetch menus for all locations and periods for today and tomorrow
+        run: |
+          LOCATIONS=("627bbf3bb63f1e0fb3c1691a" "627bbf2cb63f1e10059b45a4" "6262b663b63f1e1517b6e433" "62a90bbaa9f13a0e1cac2320" "627bbeb6b63f1e0fa1c9fe7b" "62b21c96a9f13a0ac1472ef1")
+          BASE_URL="https://a0dash.pages.dev/api/menu"
+          for loc in "${LOCATIONS[@]}"; do
+            for day in today tomorrow; do
+              DATE=$(date -u +"%Y-%m-%d")
+              if [ "$day" = "tomorrow" ]; then
+                DATE=$(date -u -d "+1 day" +"%Y-%m-%d")
+              fi
+              # Fetch periods
+              curl -s "${BASE_URL}?location=${loc}&date=${DATE}&day=${day}" > /dev/null
+              # Optionally, fetch each period's menu if you know the period IDs
+            done
+          done
+        shell: bash
