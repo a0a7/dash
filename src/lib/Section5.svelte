@@ -35,6 +35,10 @@
 
 
   // Prefetch all menus for all locations and periods using the /api/menu endpoint
+  // Use production API in local dev, relative in production
+  const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+  const apiBase = isLocal ? 'https://a0dash.pages.dev/api/menu' : '/api/menu';
+
   async function prefetchAllMenus() {
     loading.set(true);
     error.set(null);
@@ -43,7 +47,7 @@
       const allMenus: typeof prefetchedMenus = {};
       for (const loc of locations) {
         // Fetch periods for this location
-        const periodsUrl = `/api/menu?location=${loc.id}&date=${encodeURIComponent(dateStr)}`;
+        const periodsUrl = `${apiBase}?location=${loc.id}&date=${encodeURIComponent(dateStr)}`;
         const res = await fetch(periodsUrl);
         if (!res.ok) throw new Error(`Failed to fetch periods for ${loc.name}`);
         const data = await res.json();
@@ -51,7 +55,7 @@
         const menus: Record<string, any> = {};
         // Prefetch each period's menu
         for (const period of locPeriods) {
-          const menuUrl = `/api/menu?location=${loc.id}&period=${period.id}&date=${encodeURIComponent(dateStr)}`;
+          const menuUrl = `${apiBase}?location=${loc.id}&period=${period.id}&date=${encodeURIComponent(dateStr)}`;
           const menuRes = await fetch(menuUrl);
           if (menuRes.ok) {
             menus[period.id] = await menuRes.json();

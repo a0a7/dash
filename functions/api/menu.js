@@ -24,8 +24,8 @@ export async function onRequestGet(context) {
 
   // Try to get from KV
   // Try to get from KV for both today and tomorrow
-  let todayCached = await context.env.UMN_MENUS.get(todayKey, "json");
-  let tomorrowCached = await context.env.UMN_MENUS.get(tomorrowKey, "json");
+  let todayCached = await platform?.env.UMN_MENUS.get(todayKey, "json");
+  let tomorrowCached = await platform?.env.UMN_MENUS.get(tomorrowKey, "json");
 
   // If either is missing, fetch and cache
   if (!todayCached) {
@@ -41,7 +41,7 @@ export async function onRequestGet(context) {
       const now = new Date();
       const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
       const secondsUntilEndOfDay = Math.floor((endOfDay.getTime() - now.getTime()) / 1000);
-      await context.env.UMN_MENUS.put(todayKey, JSON.stringify(todayCached), { expirationTtl: secondsUntilEndOfDay });
+      await platform?.env.UMN_MENUS.put(todayKey, JSON.stringify(todayCached), { expirationTtl: secondsUntilEndOfDay });
     }
   }
   if (!tomorrowCached) {
@@ -57,7 +57,7 @@ export async function onRequestGet(context) {
       const now = new Date();
       const endOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2, 0, 0, 0, 0);
       const secondsUntilEndOfTomorrow = Math.floor((endOfTomorrow.getTime() - now.getTime()) / 1000);
-      await context.env.UMN_MENUS.put(tomorrowKey, JSON.stringify(tomorrowCached), { expirationTtl: secondsUntilEndOfTomorrow });
+      await platform?.env.UMN_MENUS.put(tomorrowKey, JSON.stringify(tomorrowCached), { expirationTtl: secondsUntilEndOfTomorrow });
     }
   }
 
