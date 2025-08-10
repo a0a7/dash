@@ -12,6 +12,9 @@
       String(Math.abs(now.getTimezoneOffset() / 60)).padStart(2, '0') + '00 (Central Daylight Time)';
   }
 
+    $: if ($hoveredItem) {
+    console.log('hoveredItem', $hoveredItem);
+    }
 
   // List of all locations (flattened from buildings)
   const locations = [
@@ -24,19 +27,37 @@
   ];
 
 
-  const selectedLocation = writable<string>(locations[0].id); // Default to 17th Ave. Dining Hall
+  // LocalStorage keys
+  const LS_SELECTED_LOCATION = 'umn_menu_selected_location';
+  const LS_SELECTED_PERIOD = 'umn_menu_selected_period';
+  const LS_SELECTED_DAY = 'umn_menu_selected_day';
+
+  // Restore from localStorage if available
+  let initialLocation = locations[0].id;
+  let initialPeriod: string | null = null;
+  let initialDay: 'today' | 'tomorrow' = 'today';
+  if (typeof localStorage !== 'undefined') {
+    const loc = localStorage.getItem(LS_SELECTED_LOCATION);
+    if (loc && locations.some(l => l.id === loc)) initialLocation = loc;
+    const dayVal = localStorage.getItem(LS_SELECTED_DAY);
+    if (dayVal === 'today' || dayVal === 'tomorrow') initialDay = dayVal;
+    const per = localStorage.getItem(LS_SELECTED_PERIOD);
+    if (per) initialPeriod = per;
+  }
+
+  const selectedLocation = writable<string>(initialLocation);
   const menuData = writable<any>(null);
   const loading = writable(true);
   const error = writable<string | null>(null);
   const periods = writable<any[]>([]);
-  const selectedPeriod = writable<string | null>(null);
+  const selectedPeriod = writable<string | null>(initialPeriod);
 
   // Prefetched menus: { [locationId]: { periods, menus: { [periodId]: menuData } } }
   let prefetchedMenus: Record<string, { periods: any[]; menus: Record<string, any> }> = {};
 
 
   // Add day selection: "today" or "tomorrow"
-  const day = writable<'today' | 'tomorrow'>('today');
+  const day = writable<'today' | 'tomorrow'>(initialDay);
   const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
   const apiBase = isLocal ? 'https://corsproxy.io/?url=https://a0dash.pages.dev/api/menu' : '/api/menu';
 
@@ -158,13 +179,26 @@
   $: if (!firstLoad && $selectedLocation && $selectedPeriod) {
     setMenuFromCache($selectedLocation, $selectedPeriod);
   }
+  // Persist selection changes to localStorage
+  selectedLocation.subscribe(val => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(LS_SELECTED_LOCATION, val);
+  });
+  selectedPeriod.subscribe(val => {
+    if (typeof localStorage !== 'undefined' && val) localStorage.setItem(LS_SELECTED_PERIOD, val);
+  });
+  day.subscribe(val => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(LS_SELECTED_DAY, val);
+  });
+
   onMount(() => {
     prefetchAllMenus();
     firstLoad = false;
   });
+    const hoveredItem = writable<any>(null);
+
 </script>
 
-<div class="space-y-4">
+<div class="space-y-2 h-full flex flex-col">
     <div class="flex items-center mb-4">
         <h2 class="text-lg font-bold">menu at</h2>
         <select
@@ -193,6 +227,7 @@
             Tomorrow
         </button>
     </div>
+    <div>
         {#each $periods as period}
         <button
             class="menu-btn"
@@ -203,42 +238,97 @@
             {period.name}
         </button>
         {/each}
+        </div>
   {#if $loading}
     <div>Loading...</div>
   {:else if $error}
     <div class="text-red-500">Error: {$error}</div>
   {:else if $menuData && $menuData.menu && $menuData.menu.period && Array.isArray($menuData.menu.period.categories)}
-    <div class="space-y-4">
+    <div class="space-y-2 flex-1 overflow-y-auto">
       {#if Array.isArray($menuData.menu.period.categories)}
         {#each $menuData.menu.period.categories as category}
-          <div class="compact-menu-category">
-            <h3 class="font-semibold text-base mb-1">{category.name}</h3>
-          <div class="flex items-start relative min-h-[1.5rem]">
-            <div class="absolute left-3 top-2 bottom-2 w-0.5 bg-slate-300 z-0"></div>
-            <ul class="list-none p-0 m-0 ml-8 flex-1 z-10">
-              {#if Array.isArray(category.items)}
-                {#each category.items as item}
-                  <li class="flex items-start mb-1">
-                    <div class="font-medium min-w-[110px] mr-4 whitespace-nowrap">{item.name}</div>
-                    <div class="text-sm text-slate-500 flex-1 break-words">
-                      {#if item.desc}
-                        <span class="text-gray-500">{item.desc}</span>
-                      {/if}
-                      {#if item.portion}
-                        <span class="ml-2 text-xs text-gray-400">({item.portion})</span>
-                      {/if}
-                    </div>
-                  </li>
-                {/each}
-              {/if}
-            </ul>
-          </div>
-          </div>
+          {#if Array.isArray(category.items) && category.items.length > 0}
+            <div class="compact-menu-category">
+              <h3 class="font-semibold text-base">{category.name}</h3>
+              <div class="flex items-start relative min-h-[1.5rem]">
+                <div class="absolute left-[3px] top-1 bottom-2 w-0.5 bg-slate-300 z-0"></div>
+                <ul class="list-none p-0 m-0 ml-[14px] flex-1 z-10">
+                  {#each category.items as item (item.id || item.name)}
+                    <li class="flex items-start mb-2 group relative"
+                        on:mouseenter={() => hoveredItem.set(item)}
+                        on:focus={() => hoveredItem.set(item)}
+                        on:mouseleave={() => hoveredItem.set(null)}
+                        on:blur={() => hoveredItem.set(null)}
+                        tabindex="0"
+                    >
+                      <div class="font-medium min-w-[110px] mr-2 whitespace-nowrap cursor-pointer">
+                        {item.name}
+                      </div>
+                      <div class="text-sm mr-2 text-slate-500 flex-1 break-words">
+                          {#if item.portion}
+                              <span class="text-xs text-gray-400">({item.portion})</span>
+                          {/if}
+                      </div>
+                    </li>
+                  {/each}
+                </ul>
+              </div>
+            </div>
+          {/if}
         {/each}
+      {/if}
+    </div>
+        <div class="mt-1 w-full max-w-xl mx-auto bg-white border border-gray-300 rounded shadow px-4 py-2 text-sm text-gray-700 min-h-[90px] flex flex-col ">
+      {#if $hoveredItem}
+        <div class="flex gap-2 items-center">
+            <div class="font-semibold text-base mb-0">{$hoveredItem.name}</div>
+            {#if $hoveredItem.portion}
+            <div class="text-xs text-gray-400 mb-0">({$hoveredItem.portion})</div>
+            {/if}
+        </div>
+        {#if $hoveredItem.desc}
+          <div class="mb-1 text-xs text-gray-500 truncate">{$hoveredItem.desc}</div>
+        {/if}
+        {#if $hoveredItem.nutrients && Array.isArray($hoveredItem.nutrients)}
+          {@const n = $hoveredItem.nutrients}
+          <div class="flex flex-wrap gap-x-3 gap-y-1 items-center">
+            {#if n.find(x => x.name === 'Calories')}
+              <span class="ml-0">{n.find(x => x.name === 'Calories').value} kcal</span>
+            {/if}
+            {#if n.find(x => x.name.startsWith('Protein')) || n.find(x => x.name.startsWith('Total Carbohydrates')) || n.find(x => x.name.startsWith('Total Fat'))}
+              <span>
+                P/C/F:
+                <span class="font-semibold">
+                  {(() => {
+                    const v = n.find(x => x.name.startsWith('Protein'))?.value || '-';
+                    return typeof v === 'string' && v.trim().startsWith('<') ? '0' : v;
+                  })()}
+                  /
+                  {(() => {
+                    const v = n.find(x => x.name.startsWith('Total Carbohydrates'))?.value || '-';
+                    return typeof v === 'string' && v.trim().startsWith('<') ? '0' : v;
+                  })()}
+                  /
+                  {(() => {
+                    const v = n.find(x => x.name.startsWith('Total Fat'))?.value || '-';
+                    return typeof v === 'string' && v.trim().startsWith('<') ? '0' : v;
+                  })()}g
+                </span>
+              </span>
+            {/if}
+            {#if n.find(x => x.name.startsWith('Sugar'))}
+              <span class="ml-0">Sugar: <span class="font-semibold">{n.find(x => x.name.startsWith('Sugar')).value}g</span></span>
+            {/if}
+            {#if n.find(x => x.name.startsWith('Dietary Fiber'))}
+              <span class="ml-0">Fiber: <span class="font-semibold">{n.find(x => x.name.startsWith('Dietary Fiber')).value}g</span></span>
+            {/if}
+          </div>
+        {/if}
+      {:else}
+        <div class="text-gray-400 text-center">Hover or tap a menu item to see details.</div>
       {/if}
     </div>
   {:else}
     <div>No menu available for { $day }.</div>
   {/if}
 </div>
-
