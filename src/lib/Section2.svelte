@@ -11,16 +11,16 @@
 
   const services: Service[] = [
     { label: 'GARMIN SYNC', url: 'https://garmin-sync-worker.lev-s-cloudflare.workers.dev/health', expect: 'OK' },
-    { label: 'JELLYFIN', url: 'https://jellyfin.abraham.africa/health', expect: 'OK' },
-    { label: 'OVERSEERR', url: 'https://overseerr.abraham.africa/health', expect: 'OK' },
-    { label: 'QBITTORRENT', url: 'https://qbittorrent.abraham.africa/health', expect: 'OK' },
-    { label: 'RADARR', url: 'https://radarr.abraham.africa/health', expect: 'OK' },
-    { label: 'SONARR', url: 'https://sonarr.abraham.africa/health', expect: 'OK' },
-    { label: 'BAZARR', url: 'https://bazarr.abraham.africa/health', expect: 'OK' },
-    { label: 'FLARESOLVERR', url: 'https://flaresolverr.abraham.africa/health', expect: 'OK' },
-    { label: 'PROWLARR', url: 'https://prowlarr.abraham.africa/health', expect: 'OK' },
-    { label: 'TUBESYNC', url: 'https://tubesync.abraham.africa/health', expect: 'OK' },
-    { label: 'DOZZLE', url: 'https://dozzle.abraham.africa/health', expect: 'OK' },
+    { label: 'JELLYFIN', url: 'https://jellyfin.abraham.africa', expect: 'OK' },
+    { label: 'OVERSEERR', url: 'https://overseerr.abraham.africa', expect: 'OK' },
+    { label: 'QBITTORRENT', url: 'https://qbittorrent.abraham.africa', expect: 'OK' },
+    { label: 'RADARR', url: 'https://radarr.abraham.africa', expect: 'OK' },
+    { label: 'SONARR', url: 'https://sonarr.abraham.africa', expect: 'OK' },
+    { label: 'BAZARR', url: 'https://bazarr.abraham.africa', expect: 'OK' },
+    { label: 'FLARESOLVERR', url: 'https://flaresolverr.abraham.africa', expect: 'OK' },
+    { label: 'PROWLARR', url: 'https://prowlarr.abraham.africa', expect: 'OK' },
+    { label: 'TUBESYNC', url: 'https://tubesync.abraham.africa', expect: 'OK' },
+    { label: 'DOZZLE', url: 'https://dozzle.abraham.africa', expect: 'OK' },
   ];
 
   type Status = 'ok' | string | null;
@@ -29,16 +29,37 @@
 
   async function fetchServiceStatus(service: Service) {
     loadingMap.update(m => ({ ...m, [service.label]: true }));
-    try {
-      const res = await fetch('https://corsproxy.io/?url=' + encodeURIComponent(service.url));
-      if (res.ok) {
-        const text = await res.text();
-        statusMap.update(m => ({ ...m, [service.label]: service.expect && text.trim() === service.expect ? 'ok' : text.trim() }));
-      } else {
-        statusMap.update(m => ({ ...m, [service.label]: res.status.toString() }));
+    // Try /health and /, return OK if either succeeds
+    const urls = [service.url + '/health', service.url + '/'];
+    let ok = false;
+    let errorCode = '';
+    for (const url of urls) {
+      try {
+        const res = await fetch('https://corsproxy.io/?url=' + encodeURIComponent(url));
+        if (res.ok) {
+          if (url.endsWith('/health')) {
+            const text = await res.text();
+            if (service.expect && text.trim() === service.expect) {
+              ok = true;
+              break;
+            } else {
+              errorCode = text.trim();
+            }
+          } else {
+            ok = true;
+            break;
+          }
+        } else {
+          errorCode = res.status.toString();
+        }
+      } catch (e: any) {
+        errorCode = 'ERR';
       }
-    } catch (e: any) {
-      statusMap.update(m => ({ ...m, [service.label]: 'ERR' }));
+    }
+    if (ok) {
+      statusMap.update(m => ({ ...m, [service.label]: 'ok' }));
+    } else {
+      statusMap.update(m => ({ ...m, [service.label]: errorCode || 'ERR' }));
     }
     loadingMap.update(m => ({ ...m, [service.label]: false }));
   }
