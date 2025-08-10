@@ -9,10 +9,10 @@
   // Section names
   const sections = [
     { id: 'a1', label: 'Section 1', component: Section1 },
-    { id: 'a2', label: 'Section 2', component: Section2 },
-    { id: 'b1', label: 'Section 3', component: Section3 },
-    { id: 'b2', label: 'Section 4', component: Section4 },
-    { id: 'c', label: 'Section 5', component: Section5 }
+    { id: 'a2', label: 'Webservice Status', component: Section2 },
+    { id: 'b1', label: 'Strava', component: Section3 },
+    { id: 'b2', label: 'Laundry', component: Section4 },
+    { id: 'c', label: 'Menus', component: Section5 }
   ];
 
   // For mobile: which section is active
@@ -44,18 +44,10 @@
     {/each}
   </div>
   {#each sections as section}
-    {#if $activeSection === section.id}
-      <div class="mb-4 bg-white rounded-lg shadow p-4">
-        <svelte:component this={section.component} />
-      </div>
-    {/if}
+    <div class="mb-4 bg-white rounded-lg shadow p-4" style="display: { $activeSection === section.id ? 'block' : 'none' }">
+      <svelte:component this={section.component} />
+    </div>
   {/each}
-  <!-- Always render Section5 (hidden if not active) so it loads immediately on mobile -->
-  <div style="display:none">
-    {#if isMobile}
-      <Section5 />
-    {/if}
-  </div>
 {:else}
   <div class="grid grid-cols-3 grid-rows-2 gap-4 h-screen p-4 box-border">
     <div class="bg-white rounded-lg shadow p-4 flex flex-col justify-start min-w-0 min-h-0 row-start-1 col-start-1"><Section1 /></div>

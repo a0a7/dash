@@ -53,7 +53,7 @@
   const selectedPeriod = writable<string | null>(initialPeriod);
 
   // Prefetched menus: { [locationId]: { periods, menus: { [periodId]: menuData } } }
-  let prefetchedMenus: Record<string, { periods: any[]; menus: Record<string, any> }> = {};
+  let prefetchedMenus: Record<string, { periods: { today: any[]; tomorrow: any[] }; menus: Record<string, { today?: any; tomorrow?: any }> }> = {};
 
 
   // Add day selection: "today" or "tomorrow"
@@ -96,45 +96,28 @@
     }
     if (!cacheValid) {
       try {
-        const tomorrowStr = (() => {
-          const d = new Date(dateStr);
-          d.setDate(d.getDate() + 1);
-          return d.toDateString() + ' 00:00:00 GMT' +
-            (d.getTimezoneOffset() > 0 ? '-' : '+') +
-            String(Math.abs(d.getTimezoneOffset() / 60)).padStart(2, '0') + '00 (Central Daylight Time)';
-        })();
-        const allMenus: Record<string, { periods: { today: any[]; tomorrow: any[] }, menus: Record<string, { today?: any, tomorrow?: any }> }> = {};
+        // Only fetch and cache menus for the selected day (not both today and tomorrow at once)
+        const allMenus: Record<string, { periods: any[]; menus: Record<string, any> }> = {};
+        const currentDay = get(day);
         for (const loc of locations) {
-          // Fetch periods for today and tomorrow
-          const periodsTodayUrl = `${apiBase}?location=${loc.id}&date=${encodeURIComponent(dateStr)}`;
-          const periodsTomorrowUrl = `${apiBase}?location=${loc.id}&date=${encodeURIComponent(dateStr)}&day=tomorrow`;
-          const [resToday, resTomorrow] = await Promise.all([
-            fetch(periodsTodayUrl),
-            fetch(periodsTomorrowUrl)
-          ]);
-          const dataToday = resToday.ok ? await resToday.json() : { periods: [] };
-          const dataTomorrow = resTomorrow.ok ? await resTomorrow.json() : { periods: [] };
-          const locPeriods = { today: dataToday.periods || [], tomorrow: dataTomorrow.periods || [] };
-          const menus: Record<string, { today?: any, tomorrow?: any }> = {};
-          // Prefetch each period's menu for today and tomorrow
-          for (const period of locPeriods.today) {
-            const menuTodayUrl = `${apiBase}?location=${loc.id}&period=${period.id}&date=${encodeURIComponent(dateStr)}`;
-            const menuTomorrowUrl = `${apiBase}?location=${loc.id}&period=${period.id}&date=${encodeURIComponent(dateStr)}&day=tomorrow`;
-            const [menuResToday, menuResTomorrow] = await Promise.all([
-              fetch(menuTodayUrl),
-              fetch(menuTomorrowUrl)
-            ]);
-            menus[period.id] = {
-              today: menuResToday.ok ? await menuResToday.json() : null,
-              tomorrow: menuResTomorrow.ok ? await menuResTomorrow.json() : null
-            };
+          // Fetch periods for the current day
+          const periodsUrl = `${apiBase}?location=${loc.id}&date=${encodeURIComponent(dateStr)}${currentDay === 'tomorrow' ? '&day=tomorrow' : ''}`;
+          const res = await fetch(periodsUrl);
+          const data = res.ok ? await res.json() : { periods: [] };
+          const locPeriods = data.periods || [];
+          const menus: Record<string, any> = {};
+          // Prefetch each period's menu for the current day
+          for (const period of locPeriods) {
+            const menuUrl = `${apiBase}?location=${loc.id}&period=${period.id}&date=${encodeURIComponent(dateStr)}${currentDay === 'tomorrow' ? '&day=tomorrow' : ''}`;
+            const menuRes = await fetch(menuUrl);
+            menus[period.id] = menuRes.ok ? await menuRes.json() : null;
           }
           allMenus[loc.id] = { periods: locPeriods, menus };
         }
         prefetchedMenus = allMenus;
         // Save to localStorage
         if (typeof localStorage !== 'undefined') {
-          localStorage.setItem(CACHE_KEY, JSON.stringify({ menus: allMenus, todayDate }));
+          localStorage.setItem(CACHE_KEY, JSON.stringify({ menus: allMenus, todayDate, day: currentDay }));
           localStorage.setItem(CACHE_TIME_KEY, now.toISOString());
         }
       } catch (e: any) {
@@ -143,13 +126,13 @@
     }
     // Set initial UI state
     const firstLoc = locations[0].id;
-    const firstDay = get(day);
-    const firstPeriods = prefetchedMenus[firstLoc]?.periods[firstDay] || [];
+    const currentDay = get(day);
+    const firstPeriods = prefetchedMenus[firstLoc]?.periods || [];
     periods.set(firstPeriods);
     const firstPeriodId = firstPeriods[0]?.id;
     selectedLocation.set(firstLoc);
     selectedPeriod.set(firstPeriodId);
-    menuData.set(firstPeriodId ? prefetchedMenus[firstLoc].menus[firstPeriodId]?.[firstDay] : null);
+    menuData.set(firstPeriodId ? prefetchedMenus[firstLoc].menus[firstPeriodId] : null);
     loading.set(false);
   }
 
@@ -170,6 +153,7 @@
   $: if (!firstLoad && $selectedLocation) {
     const locPeriods = prefetchedMenus[$selectedLocation]?.periods[$day] || [];
     periods.set(locPeriods);
+    console.log($periods);
     // If current selectedPeriod is not in new periods, pick first
     if (!locPeriods.find(p => p.id === $selectedPeriod)) {
       selectedPeriod.set(locPeriods[0]?.id);
@@ -199,7 +183,22 @@
 </script>
 
 <div class="space-y-2 h-full flex flex-col">
-    <div class="flex items-center mb-4">
+            <button
+            class="absolute bottom-4 right-6 ml-2 px-1 py-1 rounded bg-red-500 bg-opacity-5 opacity-20 text-black border cursor-pointer border-red-300 text-xs font-semibold "
+            type="button"
+            on:click={() => {
+                if (typeof localStorage !== 'undefined') {
+                  localStorage.removeItem('umn_menu_cache_v2');
+                  localStorage.removeItem('umn_menu_cache_time_v2');
+                }
+                prefetchAllMenus();
+            }}
+            title="Clear menu cache"
+        >
+            Clear Cache
+        </button>
+
+    <div class="flex items-center mb-4 gap-2">
         <h2 class="text-lg font-bold">menu at</h2>
         <select
         id="location-select"
@@ -227,7 +226,7 @@
             Tomorrow
         </button>
     </div>
-    <div>
+    <div class="flex items-center mb-4">
         {#each $periods as period}
         <button
             class="menu-btn"
@@ -238,7 +237,7 @@
             {period.name}
         </button>
         {/each}
-        </div>
+    </div>
   {#if $loading}
     <div>Loading...</div>
   {:else if $error}
@@ -246,22 +245,24 @@
   {:else if $menuData && $menuData.menu && $menuData.menu.period && Array.isArray($menuData.menu.period.categories)}
     <div class="space-y-2 flex-1 overflow-y-auto">
       {#if Array.isArray($menuData.menu.period.categories)}
-        {#each $menuData.menu.period.categories as category}
-          {#if Array.isArray(category.items) && category.items.length > 0}
-            <div class="compact-menu-category">
-              <h3 class="font-semibold text-base">{category.name}</h3>
-              <div class="flex items-start relative min-h-[1.5rem]">
-                <div class="absolute left-[3px] top-1 bottom-2 w-0.5 bg-slate-300 z-0"></div>
-                <ul class="list-none p-0 m-0 ml-[14px] flex-1 z-10">
+        {#each $menuData.menu.period.categories.filter((category: { items: string | any[]; }) => Array.isArray(category.items) && category.items.length > 0) as category}
+          <div class="compact-menu-category">
+            <h3 class="font-semibold text-base">{category.name}</h3>
+            <div class="flex items-start relative min-h-[1.5rem]">
+              <div class="absolute left-[3px] top-1 bottom-2 w-0.5 bg-slate-300 z-0"></div>
+              <ul class="list-none p-0 m-0 ml-[14px] flex-1 z-10">
+                {#if Array.isArray(category.items)}
                   {#each category.items as item (item.id || item.name)}
                     <li class="flex items-start mb-2 group relative"
                         on:mouseenter={() => hoveredItem.set(item)}
-                        on:focus={() => hoveredItem.set(item)}
-                        tabindex="0"
                     >
-                      <div class="font-medium min-w-[110px] mr-2 whitespace-nowrap cursor-pointer">
+                      <button class="font-medium min-w-[110px] mr-2 whitespace-nowrap cursor-pointer bg-transparent border-none p-0 text-left"
+                              type="button"
+                              on:focus={() => hoveredItem.set(item)}
+                              on:mouseenter={() => hoveredItem.set(item)}
+                      >
                         {item.name}
-                      </div>
+                      </button>
                       <div class="text-sm mr-2 text-slate-500 flex-1 break-words">
                           {#if item.portion}
                               <span class="text-xs text-gray-400">({item.portion})</span>
@@ -269,10 +270,10 @@
                       </div>
                     </li>
                   {/each}
-                </ul>
-              </div>
+                {/if}
+              </ul>
             </div>
-          {/if}
+          </div>
         {/each}
       {/if}
     </div>
@@ -290,39 +291,39 @@
         {#if $hoveredItem.nutrients && Array.isArray($hoveredItem.nutrients)}
           {@const n = $hoveredItem.nutrients}
           <div class="flex flex-wrap gap-x-3 gap-y-1 items-center">
-            {#if n.find(x => x.name === 'Calories')}
-              <span class="ml-0">{n.find(x => x.name === 'Calories').value} kcal</span>
+            {#if n.find((x: { name: string; }) => x.name === 'Calories')}
+              <span class="ml-0">{n.find((x: { name: string; }) => x.name === 'Calories').value} kcal</span>
             {/if}
-            {#if n.find(x => x.name.startsWith('Protein')) || n.find(x => x.name.startsWith('Total Carbohydrates')) || n.find(x => x.name.startsWith('Total Fat'))}
+            {#if n.find((x: { name: string; }) => x.name.startsWith('Protein')) || n.find((x: { name: string; }) => x.name.startsWith('Total Carbohydrates')) || n.find((x: { name: string; }) => x.name.startsWith('Total Fat'))}
               <span>
                 P/C/F:
                 <span class="font-semibold">
                   {(() => {
-                    const v = n.find(x => x.name.startsWith('Protein'))?.value || '-';
+                    const v = n.find((x: { name: string; }) => x.name.startsWith('Protein'))?.value || '-';
                     return typeof v === 'string' && v.trim().startsWith('less than') ? '0' : v;
                   })()}
                   /
                   {(() => {
-                    const v = n.find(x => x.name.startsWith('Total Carbohydrates'))?.value || '-';
+                    const v = n.find((x: { name: string; }) => x.name.startsWith('Total Carbohydrates'))?.value || '-';
                     return typeof v === 'string' && v.trim().startsWith('less than') ? '0' : v;
                   })()}
                   /
                   {(() => {
-                    const v = n.find(x => x.name.startsWith('Total Fat'))?.value || '-';
+                    const v = n.find((x: { name: string; }) => x.name.startsWith('Total Fat'))?.value || '-';
                     return typeof v === 'string' && v.trim().startsWith('less than') ? '0' : v;
                   })()}g
                 </span>
               </span>
             {/if}
-            {#if n.find(x => x.name.startsWith('Sugar'))}
+            {#if n.find((x: { name: string; }) => x.name.startsWith('Sugar'))}
               <span class="ml-0">Sugar: <span class="font-semibold">{(() => {
-                    const v = n.find(x => x.name.startsWith('Sugar'))?.value || '-';
+                    const v = n.find((x: { name: string; }) => x.name.startsWith('Sugar'))?.value || '-';
                     return typeof v === 'string' && v.trim().startsWith('less than') ? '0' : v;
                   })()}g</span></span>
             {/if}
-            {#if n.find(x => x.name.startsWith('Dietary Fiber'))}
+            {#if n.find((x: { name: string; }) => x.name.startsWith('Dietary Fiber'))}
               <span class="ml-0">Fiber: <span class="font-semibold">{(() => {
-                    const v = n.find(x => x.name.startsWith('Dietary Fiber'))?.value || '-';
+                    const v = n.find((x: { name: string; }) => x.name.startsWith('Dietary Fiber'))?.value || '-';
                     return typeof v === 'string' && v.trim().startsWith('less than') ? '0' : v;
                   })()}g</span></span>
             {/if}
