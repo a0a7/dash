@@ -4,4 +4,5 @@
 
 <div>
   <h2>Section 4</h2>
+  laundry status
 </div>
