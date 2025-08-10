@@ -1,4 +1,5 @@
-export async function GET({ url, locals }) {
+// @ts-ignore
+export async function GET({ url, platform }) {
   const searchParams = url.searchParams;
   const location = searchParams.get("location");
   const date = searchParams.get("date");
@@ -10,7 +11,7 @@ export async function GET({ url, locals }) {
   }
 
   // KV binding is available as locals.env.UMN_MENUS in SvelteKit on Cloudflare
-  const env = locals.env;
+  const env = platform?.env;
 
   const todayKey = period
     ? `menu:${location}:${period}:${date}`
@@ -22,8 +23,8 @@ export async function GET({ url, locals }) {
     ? `menu:${location}:${period}:${tomorrowStr}`
     : `periods:${location}:${tomorrowStr}`;
 
-  let todayCached = await env.UMN_MENUS.get(todayKey, "json");
-  let tomorrowCached = await env.UMN_MENUS.get(tomorrowKey, "json");
+  let todayCached = await env?.UMN_MENUS.get(todayKey, "json");
+  let tomorrowCached = await env?.UMN_MENUS.get(tomorrowKey, "json");
 
   if (!todayCached) {
     let apiUrl = `https://apiv4.dineoncampus.com/locations/${location}/periods/`;
@@ -37,7 +38,7 @@ export async function GET({ url, locals }) {
       const now = new Date();
       const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
       const secondsUntilEndOfDay = Math.floor((endOfDay.getTime() - now.getTime()) / 1000);
-      await env.UMN_MENUS.put(todayKey, JSON.stringify(todayCached), { expirationTtl: secondsUntilEndOfDay });
+      await env?.UMN_MENUS.put(todayKey, JSON.stringify(todayCached), { expirationTtl: secondsUntilEndOfDay });
     }
   }
   if (!tomorrowCached) {
@@ -52,7 +53,7 @@ export async function GET({ url, locals }) {
       const now = new Date();
       const endOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2, 0, 0, 0, 0);
       const secondsUntilEndOfTomorrow = Math.floor((endOfTomorrow.getTime() - now.getTime()) / 1000);
-      await env.UMN_MENUS.put(tomorrowKey, JSON.stringify(tomorrowCached), { expirationTtl: secondsUntilEndOfTomorrow });
+      await env?.UMN_MENUS.put(tomorrowKey, JSON.stringify(tomorrowCached), { expirationTtl: secondsUntilEndOfTomorrow });
     }
   }
 
