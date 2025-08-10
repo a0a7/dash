@@ -1,102 +1,43 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { writable } from 'svelte/store';
-  
+  import Section1 from '$lib/Section1.svelte';
+  import Section2 from '$lib/Section2.svelte';
+  import Section3 from '$lib/Section3.svelte';
+  import Section4 from '$lib/Section4.svelte';
+  import Section5 from '$lib/Section5.svelte';
+
   // Section names
   const sections = [
-    { id: 'a1', label: 'Section 1' },
-    { id: 'a2', label: 'Section 2' },
-    { id: 'b1', label: 'Section 3' },
-    { id: 'b2', label: 'Section 4' },
-    { id: 'c', label: 'Section 5' }
+    { id: 'a1', label: 'Section 1', component: Section1 },
+    { id: 'a2', label: 'Section 2', component: Section2 },
+    { id: 'b1', label: 'Section 3', component: Section3 },
+    { id: 'b2', label: 'Section 4', component: Section4 },
+    { id: 'c', label: 'Section 5', component: Section5 }
   ];
 
   // For mobile: which section is active
   const activeSection = writable('a1');
 
+  import { browser } from '$app/environment';
   let isMobile = false;
-  function checkMobile() {
-    isMobile = window.innerWidth < 768;
+  if (browser) {
+    const mql = window.matchMedia('(max-width: 767px)');
+    isMobile = mql.matches;
+    mql.addEventListener('change', (e) => {
+      isMobile = e.matches;
+    });
   }
-  onMount(() => {
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  });
 </script>
 
-<style>
-  .dashboard {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
-    gap: 1rem;
-    height: 100vh;
-    padding: 1rem;
-    box-sizing: border-box;
-  }
-  .section {
-    background: #fff;
-    border-radius: 0.5rem;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-    padding: 1rem;
-    min-width: 0;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-  }
-  .section-title {
-    font-weight: bold;
-    margin-bottom: 0.5rem;
-  }
-  /* Mosaic layout */
-  .a1 { grid-column: 1; grid-row: 1; }
-  .a2 { grid-column: 1; grid-row: 2; }
-  .b1 { grid-column: 2; grid-row: 1; }
-  .b2 { grid-column: 2; grid-row: 2; }
-  .c  { grid-column: 3 / span 1; grid-row: 1 / span 2; }
 
-  /* Mobile styles */
-  @media (max-width: 767px) {
-    .dashboard {
-      display: block;
-      height: auto;
-      padding: 0.5rem;
-    }
-    .mobile-tabs {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-      flex-wrap: wrap;
-    }
-    .mobile-tab {
-      flex: 1 1 40%;
-      padding: 0.5rem 1rem;
-      background: #eee;
-      border-radius: 0.5rem 0.5rem 0 0;
-      border: none;
-      cursor: pointer;
-      font-weight: bold;
-      transition: background 0.2s;
-    }
-    .mobile-tab.active {
-      background: #fff;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-    }
-    .section {
-      margin-bottom: 1rem;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-    }
-  }
-</style>
 
 {#if isMobile}
-  <div class="mobile-tabs">
+  <div class="flex flex-wrap gap-2 mb-4">
     {#each sections as section}
       <button
-        class="mobile-tab { $activeSection === section.id ? 'active' : '' }"
+        class="flex-1 min-w-[40%] px-4 py-2 rounded-t-lg font-bold transition bg-gray-200 border-none cursor-pointer { $activeSection === section.id ? 'bg-white shadow' : '' }"
         on:click={() => activeSection.set(section.id)}
+        type="button"
       >
         {section.label}
       </button>
@@ -104,33 +45,17 @@
   </div>
   {#each sections as section}
     {#if $activeSection === section.id}
-      <div class="section {section.id}">
-        <div class="section-title">{section.label}</div>
-        <div>Content for {section.label}</div>
+      <div class="mb-4 bg-white rounded-lg shadow p-4">
+        <svelte:component this={section.component} />
       </div>
     {/if}
   {/each}
 {:else}
-  <div class="dashboard">
-    <div class="section a1">
-      <div class="section-title">Section 1</div>
-      <div>Content for Section 1</div>
-    </div>
-    <div class="section a2">
-      <div class="section-title">Section 2</div>
-      <div>Content for Section 2</div>
-    </div>
-    <div class="section b1">
-      <div class="section-title">Section 3</div>
-      <div>Content for Section 3</div>
-    </div>
-    <div class="section b2">
-      <div class="section-title">Section 4</div>
-      <div>Content for Section 4</div>
-    </div>
-    <div class="section c">
-      <div class="section-title">Section 5</div>
-      <div>Content for Section 5</div>
-    </div>
+  <div class="grid grid-cols-3 grid-rows-2 gap-4 h-screen p-4 box-border">
+    <div class="bg-white rounded-lg shadow p-4 flex flex-col justify-start min-w-0 min-h-0 row-start-1 col-start-1"><Section1 /></div>
+    <div class="bg-white rounded-lg shadow p-4 flex flex-col justify-start min-w-0 min-h-0 row-start-2 col-start-1"><Section2 /></div>
+    <div class="bg-white rounded-lg shadow p-4 flex flex-col justify-start min-w-0 min-h-0 row-start-1 col-start-2"><Section3 /></div>
+    <div class="bg-white rounded-lg shadow p-4 flex flex-col justify-start min-w-0 min-h-0 row-start-2 col-start-2"><Section4 /></div>
+    <div class="bg-white rounded-lg shadow p-4 flex flex-col justify-start min-w-0 min-h-0 row-span-2 col-start-3 row-start-1"><Section5 /></div>
   </div>
 {/if}
