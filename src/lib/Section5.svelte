@@ -40,62 +40,96 @@
   const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
   const apiBase = isLocal ? 'https://corsproxy.io/?url=https://a0dash.pages.dev/api/menu' : '/api/menu';
 
-  // Prefetch all menus for all locations and periods for both days
+  // Prefetch all menus for all locations and periods for both days, with localStorage caching
   async function prefetchAllMenus() {
     loading.set(true);
     error.set(null);
+    const CACHE_KEY = 'umn_menu_cache_v2';
+    const CACHE_TIME_KEY = 'umn_menu_cache_time_v2';
+    const now = new Date();
+    const dateStr = getDateString();
+    const todayDate = now.toDateString();
+    let cacheValid = false;
+    let cachedMenus = null;
+    let cachedTime = null;
     try {
-      const dateStr = getDateString();
-      const tomorrowStr = (() => {
-        const d = new Date(dateStr);
-        d.setDate(d.getDate() + 1);
-        return d.toDateString() + ' 00:00:00 GMT' +
-          (d.getTimezoneOffset() > 0 ? '-' : '+') +
-          String(Math.abs(d.getTimezoneOffset() / 60)).padStart(2, '0') + '00 (Central Daylight Time)';
-      })();
-      const allMenus: Record<string, { periods: { today: any[]; tomorrow: any[] }, menus: Record<string, { today?: any, tomorrow?: any }> }> = {};
-      for (const loc of locations) {
-        // Fetch periods for today and tomorrow
-        const periodsTodayUrl = `${apiBase}?location=${loc.id}&date=${encodeURIComponent(dateStr)}`;
-        const periodsTomorrowUrl = `${apiBase}?location=${loc.id}&date=${encodeURIComponent(dateStr)}&day=tomorrow`;
-        const [resToday, resTomorrow] = await Promise.all([
-          fetch(periodsTodayUrl),
-          fetch(periodsTomorrowUrl)
-        ]);
-        const dataToday = resToday.ok ? await resToday.json() : { periods: [] };
-        const dataTomorrow = resTomorrow.ok ? await resTomorrow.json() : { periods: [] };
-        const locPeriods = { today: dataToday.periods || [], tomorrow: dataTomorrow.periods || [] };
-        const menus: Record<string, { today?: any, tomorrow?: any }> = {};
-        // Prefetch each period's menu for today and tomorrow
-        for (const period of locPeriods.today) {
-          const menuTodayUrl = `${apiBase}?location=${loc.id}&period=${period.id}&date=${encodeURIComponent(dateStr)}`;
-          const menuTomorrowUrl = `${apiBase}?location=${loc.id}&period=${period.id}&date=${encodeURIComponent(dateStr)}&day=tomorrow`;
-          const [menuResToday, menuResTomorrow] = await Promise.all([
-            fetch(menuTodayUrl),
-            fetch(menuTomorrowUrl)
-          ]);
-          menus[period.id] = {
-            today: menuResToday.ok ? await menuResToday.json() : null,
-            tomorrow: menuResTomorrow.ok ? await menuResTomorrow.json() : null
-          };
+      if (typeof localStorage !== 'undefined') {
+        cachedMenus = localStorage.getItem(CACHE_KEY);
+        cachedTime = localStorage.getItem(CACHE_TIME_KEY);
+        if (cachedMenus && cachedTime) {
+          const cacheObj = JSON.parse(cachedMenus);
+          const cacheTimestamp = new Date(cachedTime);
+          // Valid if same day and less than 12 hours old
+          if (
+            cacheObj &&
+            cacheObj.todayDate === todayDate &&
+            (now.getTime() - cacheTimestamp.getTime()) < 12 * 60 * 60 * 1000
+          ) {
+            prefetchedMenus = cacheObj.menus;
+            cacheValid = true;
+          }
         }
-        allMenus[loc.id] = { periods: locPeriods, menus };
       }
-      prefetchedMenus = allMenus;
-      // Set initial UI state
-      const firstLoc = locations[0].id;
-      const firstDay = get(day);
-      const firstPeriods = prefetchedMenus[firstLoc]?.periods[firstDay] || [];
-      periods.set(firstPeriods);
-      const firstPeriodId = firstPeriods[0]?.id;
-      selectedLocation.set(firstLoc);
-      selectedPeriod.set(firstPeriodId);
-      menuData.set(firstPeriodId ? prefetchedMenus[firstLoc].menus[firstPeriodId]?.[firstDay] : null);
-    } catch (e: any) {
-      error.set(e.message || 'Unknown error');
-    } finally {
-      loading.set(false);
+    } catch (e) {
+      // Ignore cache errors
     }
+    if (!cacheValid) {
+      try {
+        const tomorrowStr = (() => {
+          const d = new Date(dateStr);
+          d.setDate(d.getDate() + 1);
+          return d.toDateString() + ' 00:00:00 GMT' +
+            (d.getTimezoneOffset() > 0 ? '-' : '+') +
+            String(Math.abs(d.getTimezoneOffset() / 60)).padStart(2, '0') + '00 (Central Daylight Time)';
+        })();
+        const allMenus: Record<string, { periods: { today: any[]; tomorrow: any[] }, menus: Record<string, { today?: any, tomorrow?: any }> }> = {};
+        for (const loc of locations) {
+          // Fetch periods for today and tomorrow
+          const periodsTodayUrl = `${apiBase}?location=${loc.id}&date=${encodeURIComponent(dateStr)}`;
+          const periodsTomorrowUrl = `${apiBase}?location=${loc.id}&date=${encodeURIComponent(dateStr)}&day=tomorrow`;
+          const [resToday, resTomorrow] = await Promise.all([
+            fetch(periodsTodayUrl),
+            fetch(periodsTomorrowUrl)
+          ]);
+          const dataToday = resToday.ok ? await resToday.json() : { periods: [] };
+          const dataTomorrow = resTomorrow.ok ? await resTomorrow.json() : { periods: [] };
+          const locPeriods = { today: dataToday.periods || [], tomorrow: dataTomorrow.periods || [] };
+          const menus: Record<string, { today?: any, tomorrow?: any }> = {};
+          // Prefetch each period's menu for today and tomorrow
+          for (const period of locPeriods.today) {
+            const menuTodayUrl = `${apiBase}?location=${loc.id}&period=${period.id}&date=${encodeURIComponent(dateStr)}`;
+            const menuTomorrowUrl = `${apiBase}?location=${loc.id}&period=${period.id}&date=${encodeURIComponent(dateStr)}&day=tomorrow`;
+            const [menuResToday, menuResTomorrow] = await Promise.all([
+              fetch(menuTodayUrl),
+              fetch(menuTomorrowUrl)
+            ]);
+            menus[period.id] = {
+              today: menuResToday.ok ? await menuResToday.json() : null,
+              tomorrow: menuResTomorrow.ok ? await menuResTomorrow.json() : null
+            };
+          }
+          allMenus[loc.id] = { periods: locPeriods, menus };
+        }
+        prefetchedMenus = allMenus;
+        // Save to localStorage
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(CACHE_KEY, JSON.stringify({ menus: allMenus, todayDate }));
+          localStorage.setItem(CACHE_TIME_KEY, now.toISOString());
+        }
+      } catch (e: any) {
+        error.set(e.message || 'Unknown error');
+      }
+    }
+    // Set initial UI state
+    const firstLoc = locations[0].id;
+    const firstDay = get(day);
+    const firstPeriods = prefetchedMenus[firstLoc]?.periods[firstDay] || [];
+    periods.set(firstPeriods);
+    const firstPeriodId = firstPeriods[0]?.id;
+    selectedLocation.set(firstLoc);
+    selectedPeriod.set(firstPeriodId);
+    menuData.set(firstPeriodId ? prefetchedMenus[firstLoc].menus[firstPeriodId]?.[firstDay] : null);
+    loading.set(false);
   }
 
   // Fetch menu for a specific period
