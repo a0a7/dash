@@ -50,6 +50,12 @@
       </div>
     {/if}
   {/each}
+  <!-- Always render Section5 (hidden if not active) so it loads immediately on mobile -->
+  <div style="display:none">
+    {#if isMobile}
+      <Section5 />
+    {/if}
+  </div>
 {:else}
   <div class="grid grid-cols-3 grid-rows-2 gap-4 h-screen p-4 box-border">
     <div class="bg-white rounded-lg shadow p-4 flex flex-col justify-start min-w-0 min-h-0 row-start-1 col-start-1"><Section1 /></div>
