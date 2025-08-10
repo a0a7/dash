@@ -257,8 +257,6 @@
                     <li class="flex items-start mb-2 group relative"
                         on:mouseenter={() => hoveredItem.set(item)}
                         on:focus={() => hoveredItem.set(item)}
-                        on:mouseleave={() => hoveredItem.set(null)}
-                        on:blur={() => hoveredItem.set(null)}
                         tabindex="0"
                     >
                       <div class="font-medium min-w-[110px] mr-2 whitespace-nowrap cursor-pointer">
@@ -301,26 +299,32 @@
                 <span class="font-semibold">
                   {(() => {
                     const v = n.find(x => x.name.startsWith('Protein'))?.value || '-';
-                    return typeof v === 'string' && v.trim().startsWith('<') ? '0' : v;
+                    return typeof v === 'string' && v.trim().startsWith('less than') ? '0' : v;
                   })()}
                   /
                   {(() => {
                     const v = n.find(x => x.name.startsWith('Total Carbohydrates'))?.value || '-';
-                    return typeof v === 'string' && v.trim().startsWith('<') ? '0' : v;
+                    return typeof v === 'string' && v.trim().startsWith('less than') ? '0' : v;
                   })()}
                   /
                   {(() => {
                     const v = n.find(x => x.name.startsWith('Total Fat'))?.value || '-';
-                    return typeof v === 'string' && v.trim().startsWith('<') ? '0' : v;
+                    return typeof v === 'string' && v.trim().startsWith('less than') ? '0' : v;
                   })()}g
                 </span>
               </span>
             {/if}
             {#if n.find(x => x.name.startsWith('Sugar'))}
-              <span class="ml-0">Sugar: <span class="font-semibold">{n.find(x => x.name.startsWith('Sugar')).value}g</span></span>
+              <span class="ml-0">Sugar: <span class="font-semibold">{(() => {
+                    const v = n.find(x => x.name.startsWith('Sugar'))?.value || '-';
+                    return typeof v === 'string' && v.trim().startsWith('less than') ? '0' : v;
+                  })()}g</span></span>
             {/if}
             {#if n.find(x => x.name.startsWith('Dietary Fiber'))}
-              <span class="ml-0">Fiber: <span class="font-semibold">{n.find(x => x.name.startsWith('Dietary Fiber')).value}g</span></span>
+              <span class="ml-0">Fiber: <span class="font-semibold">{(() => {
+                    const v = n.find(x => x.name.startsWith('Dietary Fiber'))?.value || '-';
+                    return typeof v === 'string' && v.trim().startsWith('less than') ? '0' : v;
+                  })()}g</span></span>
             {/if}
           </div>
         {/if}
