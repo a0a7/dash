@@ -10,7 +10,7 @@
   };
 
   const services: Service[] = [
-    { label: 'GARMIN SYNC', url: 'https://garmin-sync-worker.lev-s-cloudflare.workers.dev/health', expect: 'OK' },
+    { label: 'GARMIN SYNC', url: 'https://garmin-sync-worker.lev-s-cloudflare.workers.dev', expect: 'OK' },
     { label: 'JELLYFIN', url: 'https://jellyfin.abraham.africa', expect: 'OK' },
     { label: 'OVERSEERR', url: 'https://overseerr.abraham.africa', expect: 'OK' },
     { label: 'QBITTORRENT', url: 'https://qbittorrent.abraham.africa', expect: 'OK' },
@@ -53,6 +53,7 @@
           errorCode = res.status.toString();
         }
       } catch (e: any) {
+        // Suppress fetch errors (do not log to console)
         errorCode = 'ERR';
       }
     }
@@ -83,7 +84,7 @@
           <span class="text-green-500"> OK </span>
         {:else if $statusMap[service.label]}
           <span class="text-red-500"> {$statusMap[service.label]} </span>
-        {:else}
+        {:else} 
           <span class="text-gray-400"> ... </span>
         {/if}
         ]
