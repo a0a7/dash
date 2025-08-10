@@ -4,5 +4,4 @@
 
 <div>
   <h2>Section 1</h2>
-  <p>This is the content for Section 1.</p>
 </div>
